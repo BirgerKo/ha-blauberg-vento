@@ -1,0 +1,25 @@
+[project]
+name = "ha-blauberg-vento"
+version = "1.0.0"
+description = "Home Assistant integration for Blauberg Vento Expert Wi-Fi fans"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+src = ["custom_components", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["custom_components"]

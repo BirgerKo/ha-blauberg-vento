@@ -1,0 +1,5 @@
+blauberg-vento==1.0.1
+homeassistant==2024.12.4
+pytest-homeassistant-custom-component==0.13.194
+pytest-cov
+ruff

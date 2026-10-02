@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to a Blauberg Vento device",
+        "description": "Enter the IP address and password of your Vento Expert device.",
+        "data": {
+          "host": "IP address",
+          "password": "Password"
+        }
+      },
+      "discovery": {
+        "title": "Discovered devices",
+        "description": "Select a Blauberg Vento device found on your network.",
+        "data": {
+          "host": "Device"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device.",
+      "invalid_auth": "Authentication failed. Check the device password.",
+      "no_devices_found": "No Blauberg Vento devices were found on the network. Enter the device details manually."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "entity": {
+    "select": {
+      "operation_mode": {
+        "name": "Operation mode",
+        "state": {
+          "ventilation": "Ventilation",
+          "heat_recovery": "Heat recovery",
+          "supply": "Supply"
+        }
+      }
+    },
+    "sensor": {
+      "alarm_status": {
+        "name": "Alarm status",
+        "state": {
+          "ok": "OK",
+          "warning": "Warning",
+          "alarm": "Alarm"
+        }
+      }
+    },
+    "binary_sensor": {
+      "filter_needs_replacement": {
+        "name": "Filter needs replacement"
+      },
+      "relay_state": {
+        "name": "Relay"
+      },
+      "boost_active": {
+        "name": "Boost"
+      }
+    },
+    "number": {
+      "humidity_threshold": {
+        "name": "Humidity threshold"
+      },
+      "boost_delay": {
+        "name": "Boost delay"
+      },
+      "manual_speed": {
+        "name": "Manual speed"
+      }
+    },
+    "switch": {
+      "weekly_schedule": {
+        "name": "Weekly schedule"
+      }
+    },
+    "button": {
+      "filter_reset": {
+        "name": "Reset filter timer"
+      },
+      "reset_alarms": {
+        "name": "Reset alarms"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "boost_active": {
+        "default": "mdi:turbine"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "domain": "blauberg_vento",
+  "name": "Blauberg Vento",
+  "codeowners": ["@BirgerKo"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/BirgerKo/ha-blauberg-vento",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/BirgerKo/ha-blauberg-vento/issues",
+  "loggers": ["blauberg_vento"],
+  "requirements": ["blauberg-vento==1.0.1"],
+  "version": "1.0.0"
+}

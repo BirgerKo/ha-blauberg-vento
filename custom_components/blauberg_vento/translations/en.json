@@ -15,6 +15,13 @@
         "data": {
           "host": "Device"
         }
+      },
+      "credentials": {
+        "title": "Blauberg Vento device",
+        "description": "Enter the password of the selected device.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {

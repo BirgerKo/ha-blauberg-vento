@@ -40,13 +40,20 @@ MANUAL_SCHEMA = vol.Schema(
     }
 )
 
+PASSWORD_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_PASSWORD, default=DEFAULT_PASSWORD): str}
+)
+
 
 async def async_validate_input(
-    hass: HomeAssistant, host: str, password: str
+    hass: HomeAssistant,
+    host: str,
+    password: str,
+    device_id: str | None = None,
 ) -> dict[str, Any]:
-    """Validate the connection and return the device identity."""
+    """Validate the credentials and return the device identity."""
     client = AsyncVentoClient(
-        host=host, device_id=DEFAULT_DEVICE_ID, password=password
+        host=host, device_id=device_id or DEFAULT_DEVICE_ID, password=password
     )
     try:
         params = await client.read_params([Param.DEVICE_SEARCH, Param.UNIT_TYPE])
@@ -55,10 +62,12 @@ async def async_validate_input(
     except VentoError as err:
         raise CannotConnect from err
 
-    device_id: str = params[Param.DEVICE_SEARCH].decode("ascii", errors="replace")
-    if not device_id:
+    read_device_id: str = params[Param.DEVICE_SEARCH].decode("ascii", errors="replace")
+    if not read_device_id:
         raise CannotConnect
-    return {"device_id": device_id}
+    if device_id is not None and read_device_id != device_id:
+        raise CannotConnect
+    return {"device_id": read_device_id}
 
 
 class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -69,13 +78,17 @@ class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the flow."""
         self._discovered_devices: list[DiscoveredDevice] = []
+        self._selected_device: DiscoveredDevice | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step: discover or manual entry."""
         if user_input is not None:
-            return await self._async_finish_manual(user_input)
+            self._selected_device = None
+            return await self._async_finish(
+                user_input[CONF_HOST], user_input[CONF_PASSWORD]
+            )
 
         try:
             self._discovered_devices = await AsyncVentoClient.discover(
@@ -88,7 +101,9 @@ class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_discovery()
 
         return self.async_show_form(
-            step_id="user", data_schema=MANUAL_SCHEMA, errors={"base": "no_devices_found"}
+            step_id="user",
+            data_schema=MANUAL_SCHEMA,
+            errors={"base": "no_devices_found"},
         )
 
     async def async_step_discovery(
@@ -98,9 +113,12 @@ class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if user_input[CONF_HOST] == MANUAL_ENTRY:
                 return self.async_show_form(step_id="user", data_schema=MANUAL_SCHEMA)
-            return await self._async_finish_manual(
-                {CONF_HOST: user_input[CONF_HOST], CONF_PASSWORD: DEFAULT_PASSWORD}
+            self._selected_device = next(
+                device
+                for device in self._discovered_devices
+                if device.ip == user_input[CONF_HOST]
             )
+            return await self.async_step_credentials()
 
         options = {
             device.ip: f"{device.unit_type_name} ({device.ip})"
@@ -112,22 +130,30 @@ class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({vol.Required(CONF_HOST): vol.In(options)}),
         )
 
-    async def _async_finish_manual(self, user_input: dict[str, Any]) -> FlowResult:
-        """Validate a manually entered host and create the entry."""
-        errors: dict[str, str] = {}
-        host = user_input[CONF_HOST]
-        password = user_input[CONF_PASSWORD]
-        device_id: str | None = None
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask for the password of the selected discovered device."""
+        if user_input is not None and self._selected_device is not None:
+            return await self._async_finish(
+                self._selected_device.ip, user_input[CONF_PASSWORD]
+            )
 
-        for device in self._discovered_devices:
-            if device.ip == host:
-                device_id = device.device_id
-                break
+        return self.async_show_form(step_id="credentials", data_schema=PASSWORD_SCHEMA)
+
+    async def _async_finish(self, host: str, password: str) -> FlowResult:
+        """Validate the connection and create the entry."""
+        errors: dict[str, str] = {}
+        device_id: str | None = None
+        discovered_id = (
+            self._selected_device.device_id if self._selected_device else None
+        )
 
         try:
-            if device_id is None:
-                validated = await async_validate_input(self.hass, host, password)
-                device_id = validated["device_id"]
+            validated = await async_validate_input(
+                self.hass, host, password, discovered_id
+            )
+            device_id = validated["device_id"]
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except InvalidAuth:
@@ -136,7 +162,11 @@ class BlaubergVentoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
 
         if device_id is None:
-            _LOGGER.debug("Connection to %s failed", host)
+            _LOGGER.debug("Validation for %s failed: %s", host, errors)
+            if self._selected_device is not None:
+                return self.async_show_form(
+                    step_id="credentials", data_schema=PASSWORD_SCHEMA, errors=errors
+                )
             return self.async_show_form(
                 step_id="user", data_schema=MANUAL_SCHEMA, errors=errors
             )

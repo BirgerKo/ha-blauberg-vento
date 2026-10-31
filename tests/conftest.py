@@ -30,6 +30,31 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+class _Probes:
+    """The credential probe as patched into each module that calls it."""
+
+    def __init__(self, flow: AsyncMock, coordinator: AsyncMock) -> None:
+        self.flow = flow
+        self.coordinator = coordinator
+
+
+@pytest.fixture(autouse=True)
+def mock_credential_probe():
+    """Stub the raw credential probe so no test opens a real socket.
+
+    The probe speaks UDP directly, so without this a test would send a
+    datagram to the fixture address and wait for the timeout.
+    """
+    with patch(
+        "custom_components.blauberg_vento.config_flow.async_probe_credentials",
+        new=AsyncMock(return_value=None),
+    ) as flow_probe, patch(
+        "custom_components.blauberg_vento.coordinator.async_probe_credentials",
+        new=AsyncMock(return_value=None),
+    ) as coordinator_probe:
+        yield _Probes(flow_probe, coordinator_probe)
+
+
 def create_device_state(**overrides: Any) -> DeviceState:
     """Create a fully populated DeviceState for testing."""
     state = DeviceState(

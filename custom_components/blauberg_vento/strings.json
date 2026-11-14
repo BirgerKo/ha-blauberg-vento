@@ -22,6 +22,13 @@
         "data": {
           "password": "Password"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter the device password",
+        "description": "The Blauberg Vento unit rejected the stored password. Enter the current password.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -30,7 +37,8 @@
       "no_devices_found": "No Blauberg Vento devices were found on the network. Enter the device details manually."
     },
     "abort": {
-      "already_configured": "This device is already configured."
+      "already_configured": "This device is already configured.",
+      "reauth_successful": "The password was updated."
     }
   },
   "entity": {

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+from custom_components.blauberg_vento.auth import (
+    ProbeAuthError,
+    ProbeConnectionError,
+)
 from custom_components.blauberg_vento.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -174,3 +178,69 @@ async def test_flow_already_configured_aborts(hass: HomeAssistant) -> None:
 
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_flow_rejects_wrong_password(
+    hass: HomeAssistant, mock_credential_probe
+) -> None:
+    """A password the device rejects reports invalid_auth, not cannot_connect.
+
+    The device answers a request that carries a wrong password with FUNC
+    0x07. A read addressed to DEFAULT_DEVICEID is never authenticated, so
+    only the probe against the real device ID can tell the two apart.
+    """
+    mock_credential_probe.flow.side_effect = ProbeAuthError("rejected")
+
+    with patched_discovery([]), patched_read_params(return_value=READ_PARAMS_OK):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"host": HOST, "password": "9999"}
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 0
+
+
+async def test_flow_unreachable_probe_reports_cannot_connect(
+    hass: HomeAssistant, mock_credential_probe
+) -> None:
+    """A silent device reports cannot_connect."""
+    mock_credential_probe.flow.side_effect = ProbeConnectionError("no reply")
+
+    with patched_discovery([]), patched_read_params(return_value=READ_PARAMS_OK):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"host": HOST, "password": "1111"}
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_reauth_updates_the_stored_password(hass: HomeAssistant) -> None:
+    """Re-authentication stores the new password on the existing entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"host": HOST, "password": "1111", "device_id": DEVICE_ID},
+        unique_id=DEVICE_ID,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["step_id"] == "reauth_confirm"
+
+    with patched_read_params(return_value=READ_PARAMS_OK):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "2222"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["password"] == "2222"

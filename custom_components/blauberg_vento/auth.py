@@ -71,10 +71,14 @@ def read_func_byte(raw: bytes) -> int:
     """Return the function byte of a response frame.
 
     The header is variable length because both the device ID and the password
-    are length-prefixed, so the function byte has to be walked to.
+    are length-prefixed, so the function byte has to be walked to. The trailing
+    checksum is verified first, so a corrupted reply cannot be mistaken for a
+    function byte.
     """
     if len(raw) < 6 or raw[:2] != PACKET_START:
         raise ProbeConnectionError("Reply is not a Blauberg Vento frame")
+    if struct.unpack("<H", raw[-2:])[0] != sum(raw[2:-2]) & 0xFFFF:
+        raise ProbeConnectionError("Reply checksum mismatch")
     id_len = raw[3]
     pwd_len_at = 4 + id_len
     if pwd_len_at >= len(raw):
@@ -110,15 +114,20 @@ async def async_probe_credentials(
     """Check one host/ID/password combination.
 
     Returns None when the credentials are good. Raises ProbeAuthError when the
-    device rejects the password, or ProbeConnectionError when it stays silent.
+    credentials cannot be valid (malformed ID or password) or the device
+    rejects the password, or ProbeConnectionError when it stays silent.
     """
+    try:
+        frame = build_read(device_id, password, PARAM_DEVICE_SEARCH)
+    except ValueError as err:
+        raise ProbeAuthError(str(err)) from err
     loop = asyncio.get_running_loop()
     future: asyncio.Future[bytes] = loop.create_future()
     transport, _ = await loop.create_datagram_endpoint(
         lambda: _ProbeProtocol(future), remote_addr=(host, port)
     )
     try:
-        transport.sendto(build_read(device_id, password, PARAM_DEVICE_SEARCH))
+        transport.sendto(frame)
         try:
             raw = await asyncio.wait_for(future, timeout)
         except TimeoutError as err:
